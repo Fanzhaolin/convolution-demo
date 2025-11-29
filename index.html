@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>连续信号卷积运算智能体</title>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+            margin: 0;
+            padding: 10px;
+            overflow: hidden;
+            height: 100vh;
+        }
+        
+        .container {
+            max-width: 100%;
+            margin: 0;
+            background: white;
+            border-radius: 0;
+            padding: 15px;
+            box-shadow: none;
+            display: flex;
+            gap: 20px;
+            height: calc(100vh - 20px);
+        }
+        
+        .left-panel {
+            flex: 0 0 400px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            overflow-y: auto;
+        }
+        
+        .right-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .main-header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .main-header h1 {
+            color: #333;
+            font-size: 1.8em;
+            margin-bottom: 5px;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+        }
+        
+        .main-header p {
+            color: #666;
+            font-size: 0.9em;
+        }
+        
+        .control-panel {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+        }
+        
+        .control-section {
+            margin-bottom: 15px;
+        }
+        
+        .control-section h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 3px;
+        }
+        
+        .input-row {
+            display: grid;
+            grid-template-columns: auto 1fr auto auto;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .input-label {
+            font-weight: 600;
+            color: #555;
+            min-width: 80px;
+        }
+        
+        .math-input {
+            padding: 8px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            transition: all 0.3s ease;
+        }
+        
+        .math-input:focus {
+            outline: none;
+            border-color: #4CAF50;
+            box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
+        }
+        
+        .time-input {
+            width: 70px;
+            padding: 6px;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 13px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+        }
+        
+        .slider-container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .slider-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .slider-title {
+            font-weight: 600;
+            color: #333;
+            font-size: 1.1em;
+        }
+        
+        .time-display {
+            background: #007bff;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: 600;
+            min-width: 100px;
+            text-align: center;
+        }
+        
+        .convolution-slider {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: linear-gradient(to right, #4CAF50 0%, #4CAF50 50%, #ddd 50%, #ddd 100%);
+            outline: none;
+            cursor: grab;
+            transition: all 0.3s ease;
+        }
+        
+        .convolution-slider:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
+        }
+        
+        .convolution-slider:active {
+            cursor: grabbing;
+        }
+        
+        .plot-grid {
+            display: grid;
+            grid-template-rows: repeat(4, 1fr);
+            gap: 15px;
+            flex: 1;
+            min-height: 0;
+        }
+        
+        .plot-box {
+            background: white;
+            border-radius: 8px;
+            padding: 10px;
+            border: 1px solid #dee2e6;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .plot-title {
+            font-size: 0.95em;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+            text-align: center;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #f0f0f0;
+            flex-shrink: 0;
+        }
+        
+        #plot1, #plot2, #plot3, #plot4 {
+            flex: 1;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .function-help {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+        
+        .function-help h4 {
+            color: #856404;
+            margin-bottom: 10px;
+        }
+        
+        .function-list {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .info-panel {
+            background: #f8f9fa;
+            color: #333;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+            border: 1px solid #dee2e6;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .info-item {
+            background: white;
+            padding: 10px;
+            border-radius: 6px;
+            text-align: center;
+            border: 1px solid #dee2e6;
+        }
+        
+        .info-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+            margin-bottom: 8px;
+        }
+        
+        .info-value {
+            font-size: 1.3em;
+            font-weight: bold;
+        }
+        
+        @media (max-width: 768px) {
+            .input-row {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+            
+            .container {
+                padding: 15px;
+            }
+            
+            .main-header h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 左侧面板 -->
+        <div class="left-panel">
+            <div class="main-header">
+                <h1>🔄 连续信号卷积运算智能体</h1>
+                <p>实时可视化卷积过程，支持自定义函数表达式</p>
+            </div>
+            
+            <div class="control-panel">
+                <div class="control-section">
+                    <h3>📝 函数输入</h3>
+                    
+                    <div class="input-row">
+                        <label class="input-label">f₁(t) =</label>
+                        <input type="text" id="f1Input" class="math-input" value="u(t) * exp(-t)" placeholder="输入函数表达式">
+                        <label class="input-label">T_start:</label>
+                        <input type="number" id="tStart" class="time-input" value="-5" step="0.5">
+                    </div>
+                    
+                    <div class="input-row">
+                        <label class="input-label">f₂(t) =</label>
+                        <input type="text" id="f2Input" class="math-input" value="rect(t, 2)" placeholder="输入函数表达式">
+                        <label class="input-label">T_end:</label>
+                        <input type="number" id="tEnd" class="time-input" value="10" step="0.5">
+                    </div>
+                    
+                    <button class="btn-primary" onclick="updateConvolution()">🚀 运行/更新卷积</button>
+                </div>
+                
+                <div class="function-help">
+                    <h4>💡 可用函数说明：</h4>
+                    <div class="function-list">
+                        <div>• u(t) - 阶跃函数</div>
+                        <div>• rect(t, width) - 矩形脉冲</div>
+                        <div>• exp(x) - 指数函数</div>
+                        <div>• cos(x), sin(x) - 三角函数</div>
+                        <div>• abs(x) - 绝对值</div>
+                        <div>• sqrt(x) - 平方根</div>
+                        <div>• pi - 圆周率常数</div>
+                        <div>• t - 时间变量</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="slider-container">
+                <div class="slider-header">
+                    <div class="slider-title">🎚️ 卷积过程展示 (滑块控制平移 τ)</div>
+                    <div class="time-display" id="timeDisplay">t = 0.00</div>
+                </div>
+                <input type="range" id="convolutionSlider" class="convolution-slider" 
+                       min="-5" max="10" step="0.01" value="0">
+            </div>
+            
+            <div class="info-panel">
+                <h3>📊 实时计算信息</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-label">当前时间 t</div>
+                        <div class="info-value" id="currentTime">0.00</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">卷积值</div>
+                        <div class="info-value" id="convValue">0.000</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">信号能量 f₁</div>
+                        <div class="info-value" id="energy1">0.000</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">信号能量 f₂</div>
+                        <div class="info-value" id="energy2">0.000</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 右侧面板 -->
+        <div class="right-panel">
+            <div class="plot-grid">
+                <div class="plot-box">
+                    <div class="plot-title">f₁(τ) 原始信号</div>
+                    <div id="plot1"></div>
+                </div>
+                
+                <div class="plot-box">
+                    <div class="plot-title">f₂(τ) 原始信号</div>
+                    <div id="plot2"></div>
+                </div>
+                
+                <div class="plot-box">
+                    <div class="plot-title">卷积过程: f₁(τ) 和 f₂(t-τ)</div>
+                    <div id="plot3"></div>
+                </div>
+                
+                <div class="plot-box">
+                    <div class="plot-title">最终卷积结果 f₁(t) * f₂(t)</div>
+                    <div id="plot4"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class ConvolutionVisualizer {
+            constructor() {
+                this.tStart = -5;
+                this.tEnd = 10;
+                this.dt = 0.01;
+                this.t = null;
+                this.f1Data = null;
+                this.f2Data = null;
+                this.convData = null;
+                this.convTime = null;
+                this.currentTime = 0;
+                this.fixedConvYMin = -1;
+                this.fixedConvYMax = 1;
+                this.isPlotInitialized = false;
+                
+                this.initializeElements();
+                this.setupEventListeners();
+                this.updateConvolution();
+            }
+            
+            initializeElements() {
+                this.f1Input = document.getElementById('f1Input');
+                this.f2Input = document.getElementById('f2Input');
+                this.tStartInput = document.getElementById('tStart');
+                this.tEndInput = document.getElementById('tEnd');
+                this.slider = document.getElementById('convolutionSlider');
+                this.timeDisplay = document.getElementById('timeDisplay');
+                
+                // Info displays
+                this.currentTimeDisplay = document.getElementById('currentTime');
+                this.convValueDisplay = document.getElementById('convValue');
+                this.energy1Display = document.getElementById('energy1');
+                this.energy2Display = document.getElementById('energy2');
+            }
+            
+            setupEventListeners() {
+                this.slider.addEventListener('input', (e) => {
+                    this.currentTime = parseFloat(e.target.value);
+                    this.updateProcessDisplay();
+                });
+            }
+            
+            // 数学函数解析器
+            evaluateFunction(funcStr, tArray) {
+                // 定义安全的数学函数
+                const u = (x) => x >= 0 ? 1 : 0;
+                const rect = (x, width = 1) => Math.abs(x / width) <= 0.5 ? 1 : 0;
+                const pi = Math.PI;
+                const exp = Math.exp;
+                const cos = Math.cos;
+                const sin = Math.sin;
+                const abs = Math.abs;
+                const sqrt = Math.sqrt;
+                
+                try {
+                    // 创建安全的执行环境
+                    const func = new Function('t', 'u', 'rect', 'pi', 'exp', 'cos', 'sin', 'abs', 'sqrt', 
+                        `return ${funcStr}`);
+                    
+                    return tArray.map(t => {
+                        try {
+                            const result = func(t, u, rect, pi, exp, cos, sin, abs, sqrt);
+                            return isFinite(result) ? result : 0;
+                        } catch (e) {
+                            return 0;
+                        }
+                    });
+                } catch (e) {
+                    console.error('函数解析错误:', e);
+                    return new Array(tArray.length).fill(0);
+                }
+            }
+            
+            updateConvolution() {
+                try {
+                    // 获取输入参数
+                    const f1Str = this.f1Input.value;
+                    const f2Str = this.f2Input.value;
+                    this.tStart = parseFloat(this.tStartInput.value);
+                    this.tEnd = parseFloat(this.tEndInput.value);
+                    
+                    if (this.tStart >= this.tEnd) {
+                        alert('起始时间必须小于结束时间');
+                        return;
+                    }
+                    
+                    // 生成时间轴
+                    this.t = [];
+                    for (let t = this.tStart; t < this.tEnd; t += this.dt) {
+                        this.t.push(t);
+                    }
+                    
+                    // 计算函数值
+                    this.f1Data = this.evaluateFunction(f1Str, this.t);
+                    this.f2Data = this.evaluateFunction(f2Str, this.t);
+                    
+                    // 计算卷积
+                    this.calculateConvolution();
+                    
+                    // 计算卷积结果的y轴范围（固定）
+                    const maxConv = Math.max(...this.convData);
+                    const minConv = Math.min(...this.convData);
+                    const convRange = maxConv - minConv;
+                    this.fixedConvYMin = minConv - convRange * 0.1;
+                    this.fixedConvYMax = maxConv + convRange * 0.1;
+                    
+                    // 重置图表初始化状态
+                    this.isPlotInitialized = false;
+                    
+                    // 更新滑块范围
+                    this.slider.min = this.convTime[0];
+                    this.slider.max = this.convTime[this.convTime.length - 1];
+                    this.slider.value = (this.convTime[0] + this.convTime[this.convTime.length - 1]) / 2;
+                    this.currentTime = parseFloat(this.slider.value);
+                    
+                    // 更新显示
+                    this.updateProcessDisplay();
+                    this.updateInfoPanel();
+                    
+                } catch (e) {
+                    console.error('更新卷积错误:', e);
+                    alert('更新卷积时发生错误，请检查输入表达式');
+                }
+            }
+            
+            calculateConvolution() {
+                const n1 = this.f1Data.length;
+                const n2 = this.f2Data.length;
+                const n = n1 + n2 - 1;
+                
+                this.convData = new Array(n).fill(0);
+                this.convTime = [];
+                
+                // 计算卷积时间轴
+                for (let i = 0; i < n; i++) {
+                    this.convTime.push(2 * this.tStart + i * this.dt);
+                }
+                
+                // 执行卷积计算
+                for (let i = 0; i < n; i++) {
+                    let sum = 0;
+                    for (let j = 0; j < n2; j++) {
+                        const k = i - j;
+                        if (k >= 0 && k < n1) {
+                            sum += this.f1Data[k] * this.f2Data[j] * this.dt;
+                        }
+                    }
+                    this.convData[i] = sum;
+                }
+            }
+            
+            updateProcessDisplay() {
+                // 更新时间显示
+                this.timeDisplay.textContent = `t = ${this.currentTime.toFixed(2)}`;
+                this.currentTimeDisplay.textContent = this.currentTime.toFixed(2);
+                
+                // 计算平移后的 f2(t-τ)
+                const f2Shifted = this.t.map(tau => {
+                    const tForF2 = this.currentTime - tau;
+                    // 使用插值获取 f2(tForF2) 的值
+                    return this.interpolateValue(tForF2, this.t, this.f2Data);
+                });
+                
+                // 计算乘积
+                const product = this.f1Data.map((val, i) => val * f2Shifted[i]);
+                
+                // 确定统一的x坐标范围
+                const xMin = Math.min(this.t[0], this.convTime[0]);
+                const xMax = Math.max(this.t[this.t.length - 1], this.convTime[this.convTime.length - 1]);
+                
+                // 绘制四个图，使用统一的x坐标范围
+                this.plotSignal('plot1', this.t, this.f1Data, 'f₁(τ)', '#FF5722', [], xMin, xMax);
+                this.plotSignal('plot2', this.t, this.f2Data, 'f₂(τ)', '#4CAF50', [], xMin, xMax);
+                this.plotProcess('plot3', this.t, this.f1Data, f2Shifted, product, xMin, xMax);
+                this.plotConvolutionResult('plot4', xMin, xMax);
+                
+                // 更新卷积值显示
+                const currentConvValue = this.interpolateValue(this.currentTime, this.convTime, this.convData);
+                this.convValueDisplay.textContent = currentConvValue.toFixed(3);
+            }
+            
+            interpolateValue(x, xArray, yArray) {
+                if (xArray.length === 0) return 0;
+                
+                // 边界检查
+                if (x <= xArray[0]) return yArray[0];
+                if (x >= xArray[xArray.length - 1]) return yArray[yArray.length - 1];
+                
+                // 线性插值
+                for (let i = 0; i < xArray.length - 1; i++) {
+                    if (x >= xArray[i] && x <= xArray[i + 1]) {
+                        const t = (x - xArray[i]) / (xArray[i + 1] - xArray[i]);
+                        return yArray[i] * (1 - t) + yArray[i + 1] * t;
+                    }
+                }
+                
+                return 0;
+            }
+            
+            plotSignal(plotId, xData, yData, name, color, currentPoint, xMin, xMax) {
+                const trace = {
+                    x: xData,
+                    y: yData,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: name,
+                    line: { color: color, width: 3 }
+                };
+                
+                const traces = currentPoint.length > 0 ? [trace, {
+                    x: currentPoint[0],
+                    y: currentPoint[1],
+                    type: 'scatter',
+                    mode: 'markers',
+                    marker: { color: 'red', size: 8 },
+                    name: '当前点'
+                }] : [trace];
+                
+                Plotly.newPlot(plotId, traces, {
+                    title: '',
+                    xaxis: { title: 'τ', range: [xMin, xMax] },
+                    yaxis: { title: '幅度' },
+                    showlegend: false,
+                    margin: { l: 40, r: 10, t: 5, b: 35 },
+                    hovermode: 'x unified'
+                });
+            }
+            
+            plotProcess(plotId, tData, f1Data, f2Shifted, product, xMin, xMax) {
+                if (!this.isPlotInitialized) {
+                    // 首次创建图表
+                    const traces = [
+                        {
+                            x: tData,
+                            y: f1Data,
+                            type: 'scatter',
+                            mode: 'lines',
+                            name: 'f₁(τ)',
+                            line: { color: '#FF5722', width: 3 }
+                        },
+                        {
+                            x: tData,
+                            y: f2Shifted,
+                            type: 'scatter',
+                            mode: 'lines',
+                            name: 'f₂(t-τ)',
+                            line: { color: '#4CAF50', width: 3, dash: 'dash' }
+                        },
+                        {
+                            x: tData,
+                            y: product,
+                            type: 'scatter',
+                            mode: 'lines',
+                            fill: 'tozeroy',
+                            fillcolor: 'rgba(255, 193, 7, 0.3)',
+                            line: { color: 'rgba(255, 193, 7, 0)' },
+                            name: 'f₁(τ)f₂(t-τ) 乘积'
+                        }
+                    ];
+                    
+                    Plotly.newPlot(plotId, traces, {
+                        title: '',
+                        xaxis: { title: 'τ', range: [xMin, xMax] },
+                        yaxis: { title: '幅度' },
+                        showlegend: true,
+                        margin: { l: 40, r: 10, t: 5, b: 35 },
+                        hovermode: 'x unified'
+                    });
+                    
+                    this.isPlotInitialized = true;
+                } else {
+                    // 更新现有图表数据
+                    const update = {
+                        y: [f1Data, f2Shifted, product]
+                    };
+                    
+                    Plotly.restyle(plotId, update, [0, 1, 2]);
+                }
+            }
+            
+            plotConvolutionResult(plotId, xMin, xMax) {
+                // 找到当前时间对应的索引
+                let currentIndex = 0;
+                for (let i = 0; i < this.convTime.length; i++) {
+                    if (this.convTime[i] <= this.currentTime) {
+                        currentIndex = i + 1;
+                    } else {
+                        break;
+                    }
+                }
+                
+                const plotTime = this.convTime.slice(0, currentIndex);
+                const plotData = this.convData.slice(0, currentIndex);
+                
+                const traces = [
+                    {
+                        x: plotTime,
+                        y: plotData,
+                        type: 'scatter',
+                        mode: 'lines',
+                        name: 'f₁(t) * f₂(t)',
+                        line: { color: '#2196F3', width: 3 }
+                    }
+                ];
+                
+                // 添加当前点
+                if (currentIndex > 0) {
+                    const currentX = this.convTime[currentIndex - 1];
+                    const currentY = this.convData[currentIndex - 1];
+                    traces.push({
+                        x: [currentX],
+                        y: [currentY],
+                        type: 'scatter',
+                        mode: 'markers',
+                        marker: { color: 'red', size: 10 },
+                        name: '当前积分结果'
+                    });
+                }
+                
+                Plotly.newPlot(plotId, traces, {
+                    title: '',
+                    xaxis: { title: 't', range: [xMin, xMax] },
+                    yaxis: { 
+                        title: '幅度',
+                        range: [this.fixedConvYMin, this.fixedConvYMax]
+                    },
+                    showlegend: false,
+                    margin: { l: 40, r: 10, t: 5, b: 35 },
+                    hovermode: 'x unified'
+                });
+            }
+            
+            updateInfoPanel() {
+                // 计算信号能量
+                const energy1 = this.f1Data.reduce((sum, val) => sum + val * val, 0) * this.dt;
+                const energy2 = this.f2Data.reduce((sum, val) => sum + val * val, 0) * this.dt;
+                
+                this.energy1Display.textContent = energy1.toFixed(3);
+                this.energy2Display.textContent = energy2.toFixed(3);
+            }
+            
+            updateSliderBackground() {
+                const min = parseFloat(this.slider.min);
+                const max = parseFloat(this.slider.max);
+                const percentage = ((this.currentTime - min) / (max - min)) * 100;
+                this.slider.style.background = 
+                    `linear-gradient(to right, #4CAF50 0%, #4CAF50 ${percentage}%, #ddd ${percentage}%, #ddd 100%)`;
+            }
+        }
+        
+        // 全局函数
+        let visualizer;
+        
+        function updateConvolution() {
+            visualizer.updateConvolution();
+        }
+        
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            visualizer = new ConvolutionVisualizer();
+        });
+    </script>
+</body>
+</html>
