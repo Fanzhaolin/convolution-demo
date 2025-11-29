@@ -413,7 +413,6 @@
                 this.currentTime = 0;
                 this.fixedConvYMin = -1;
                 this.fixedConvYMax = 1;
-                this.isPlotInitialized = false;
                 
                 this.initializeElements();
                 this.setupEventListeners();
@@ -506,9 +505,6 @@
                     this.fixedConvYMin = minConv - convRange * 0.1;
                     this.fixedConvYMax = maxConv + convRange * 0.1;
                     
-                    // 重置图表初始化状态
-                    this.isPlotInitialized = false;
-                    
                     // 更新滑块范围
                     this.slider.min = this.convTime[0];
                     this.slider.max = this.convTime[this.convTime.length - 1];
@@ -566,15 +562,23 @@
                 // 计算乘积
                 const product = this.f1Data.map((val, i) => val * f2Shifted[i]);
                 
-                // 确定统一的x坐标范围
+                // 使用统一的x坐标范围：卷积结果的范围（最宽的范围）
                 const xMin = Math.min(this.t[0], this.convTime[0]);
                 const xMax = Math.max(this.t[this.t.length - 1], this.convTime[this.convTime.length - 1]);
                 
-                // 绘制四个图，使用统一的x坐标范围
-                this.plotSignal('plot1', this.t, this.f1Data, 'f₁(τ)', '#FF5722', [], xMin, xMax);
-                this.plotSignal('plot2', this.t, this.f2Data, 'f₂(τ)', '#4CAF50', [], xMin, xMax);
-                this.plotProcess('plot3', this.t, this.f1Data, f2Shifted, product, xMin, xMax);
-                this.plotConvolutionResult('plot4', xMin, xMax);
+                // 计算所有信号统一的y轴范围
+                const allSignals = [...this.f1Data, ...this.f2Data, ...product, ...this.convData];
+                const globalYMin = Math.min(...allSignals);
+                const globalYMax = Math.max(...allSignals);
+                const yRange = globalYMax - globalYMin;
+                const fixedYMin = globalYMin - yRange * 0.1;
+                const fixedYMax = globalYMax + yRange * 0.1;
+                
+                // 绘制四个图，使用完全统一的x和y坐标范围
+                this.plotSignal('plot1', this.t, this.f1Data, 'f₁(τ)', '#FF5722', [], xMin, xMax, fixedYMin, fixedYMax);
+                this.plotSignal('plot2', this.t, this.f2Data, 'f₂(τ)', '#4CAF50', [], xMin, xMax, fixedYMin, fixedYMax);
+                this.plotProcess('plot3', this.t, this.f1Data, f2Shifted, product, xMin, xMax, fixedYMin, fixedYMax);
+                this.plotConvolutionResult('plot4', xMin, xMax, fixedYMin, fixedYMax);
                 
                 // 更新卷积值显示
                 const currentConvValue = this.interpolateValue(this.currentTime, this.convTime, this.convData);
@@ -599,7 +603,7 @@
                 return 0;
             }
             
-            plotSignal(plotId, xData, yData, name, color, currentPoint, xMin, xMax) {
+            plotSignal(plotId, xData, yData, name, color, currentPoint, xMin, xMax, yMin, yMax) {
                 const trace = {
                     x: xData,
                     y: yData,
@@ -620,67 +624,93 @@
                 
                 Plotly.newPlot(plotId, traces, {
                     title: '',
-                    xaxis: { title: 'τ', range: [xMin, xMax] },
-                    yaxis: { title: '幅度' },
+                    xaxis: { 
+                        title: 'τ', 
+                        range: [xMin, xMax],
+                        autorange: false,  // 确保不自动调整范围
+                        zeroline: true,     // 显示零线
+                        showline: true,     // 显示轴线
+                        mirror: 'ticks'     // 镜像刻度
+                    },
+                    yaxis: { 
+                        title: '幅度',
+                        range: [yMin, yMax],
+                        autorange: false,   // 确保不自动调整范围
+                        zeroline: true,     // 显示零线
+                        showline: true,     // 显示轴线
+                        mirror: 'ticks'     // 镜像刻度
+                    },
                     showlegend: false,
                     margin: { l: 40, r: 10, t: 5, b: 35 },
                     hovermode: 'x unified'
                 });
             }
             
-            plotProcess(plotId, tData, f1Data, f2Shifted, product, xMin, xMax) {
-                if (!this.isPlotInitialized) {
-                    // 首次创建图表
-                    const traces = [
-                        {
-                            x: tData,
-                            y: f1Data,
-                            type: 'scatter',
-                            mode: 'lines',
-                            name: 'f₁(τ)',
-                            line: { color: '#FF5722', width: 3 }
-                        },
-                        {
-                            x: tData,
-                            y: f2Shifted,
-                            type: 'scatter',
-                            mode: 'lines',
-                            name: 'f₂(t-τ)',
-                            line: { color: '#4CAF50', width: 3, dash: 'dash' }
-                        },
-                        {
-                            x: tData,
-                            y: product,
-                            type: 'scatter',
-                            mode: 'lines',
-                            fill: 'tozeroy',
-                            fillcolor: 'rgba(255, 193, 7, 0.3)',
-                            line: { color: 'rgba(255, 193, 7, 0)' },
-                            name: 'f₁(τ)f₂(t-τ) 乘积'
-                        }
-                    ];
-                    
-                    Plotly.newPlot(plotId, traces, {
-                        title: '',
-                        xaxis: { title: 'τ', range: [xMin, xMax] },
-                        yaxis: { title: '幅度' },
-                        showlegend: true,
-                        margin: { l: 40, r: 10, t: 5, b: 35 },
-                        hovermode: 'x unified'
-                    });
-                    
-                    this.isPlotInitialized = true;
-                } else {
-                    // 更新现有图表数据
-                    const update = {
-                        y: [f1Data, f2Shifted, product]
-                    };
-                    
-                    Plotly.restyle(plotId, update, [0, 1, 2]);
-                }
+            plotProcess(plotId, tData, f1Data, f2Shifted, product, xMin, xMax, yMin, yMax) {
+                // 总是重新创建图表，确保与其他图完全一致
+                const traces = [
+                    {
+                        x: tData,
+                        y: f1Data,
+                        type: 'scatter',
+                        mode: 'lines',
+                        name: 'f₁(τ)',
+                        line: { color: '#FF5722', width: 3 }
+                    },
+                    {
+                        x: tData,
+                        y: f2Shifted,
+                        type: 'scatter',
+                        mode: 'lines',
+                        name: 'f₂(t-τ)',
+                        line: { color: '#4CAF50', width: 3, dash: 'dash' }
+                    },
+                    {
+                        x: tData,
+                        y: product,
+                        type: 'scatter',
+                        mode: 'lines',
+                        fill: 'tozeroy',
+                        fillcolor: 'rgba(255, 193, 7, 0.3)',
+                        line: { color: 'rgba(255, 193, 7, 0)' },
+                        name: 'f₁(τ)f₂(t-τ) 乘积'
+                    }
+                ];
+                
+                Plotly.newPlot(plotId, traces, {
+                    title: '',
+                    xaxis: { 
+                        title: 'τ', 
+                        range: [xMin, xMax],
+                        autorange: false,  // 确保不自动调整范围
+                        zeroline: true,     // 显示零线
+                        showline: true,     // 显示轴线
+                        mirror: 'ticks'     // 镜像刻度
+                    },
+                    yaxis: { 
+                        title: '幅度',
+                        range: [yMin, yMax],
+                        autorange: false,   // 确保不自动调整范围
+                        zeroline: true,     // 显示零线
+                        showline: true,     // 显示轴线
+                        mirror: 'ticks'     // 镜像刻度
+                    },
+                    showlegend: true,
+                    legend: {
+                        x: 1,              // 图例在右侧内部
+                        y: 1,              // 图例在顶部
+                        xanchor: 'right',   // 右对齐
+                        yanchor: 'top',     // 顶部对齐
+                        bgcolor: 'rgba(255,255,255,0.8)',  // 半透明背景
+                        bordercolor: '#ccc', // 边框颜色
+                        borderwidth: 1       // 边框宽度
+                    },
+                    margin: { l: 40, r: 10, t: 5, b: 35 },
+                    hovermode: 'x unified'
+                });
             }
             
-            plotConvolutionResult(plotId, xMin, xMax) {
+            plotConvolutionResult(plotId, xMin, xMax, yMin, yMax) {
                 // 找到当前时间对应的索引
                 let currentIndex = 0;
                 for (let i = 0; i < this.convTime.length; i++) {
@@ -719,12 +749,24 @@
                     });
                 }
                 
+                // 确保第四幅图也使用统一的x轴和y轴范围
                 Plotly.newPlot(plotId, traces, {
                     title: '',
-                    xaxis: { title: 't', range: [xMin, xMax] },
+                    xaxis: { 
+                        title: 't', 
+                        range: [xMin, xMax],
+                        autorange: false,  // 确保不自动调整范围
+                        zeroline: true,     // 显示零线
+                        showline: true,     // 显示轴线
+                        mirror: 'ticks'     // 镜像刻度
+                    },
                     yaxis: { 
                         title: '幅度',
-                        range: [this.fixedConvYMin, this.fixedConvYMax]
+                        range: [yMin, yMax],
+                        autorange: false,   // 确保不自动调整范围
+                        zeroline: true,     // 显示零线
+                        showline: true,     // 显示轴线
+                        mirror: 'ticks'     // 镜像刻度
                     },
                     showlegend: false,
                     margin: { l: 40, r: 10, t: 5, b: 35 },
